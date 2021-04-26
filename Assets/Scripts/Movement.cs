@@ -7,6 +7,8 @@ public class Movement : MonoBehaviour {
 
     //Tilemap VecorInt(0,0,0) == World Coordinate (0,0,0)
     public Transform Sprite;
+    public Animator SpriteAnimator;
+    public Stats myStats;
 
     public Tilemap CollisionTilemap;
     public TileBase t;
@@ -38,6 +40,17 @@ public class Movement : MonoBehaviour {
     public Vector3 CommingPosition = Vector3.zero;
     float gravity = 0;
     float startrotation = 0;
+    bool StartedRotating = false;
+
+    public GameObject Bullet;
+    public float AttackRange = 0.35f;
+
+    /// <summary>
+    /// Zomebie == True
+    /// </summary>
+    public bool AmZombieOrMAge = true; 
+
+
     /// <summary>
     /// True == Right
     /// </summary>
@@ -45,17 +58,9 @@ public class Movement : MonoBehaviour {
 
     void Start() {
         CollisionTilemap = GameObject.Find("CollidableObjects").GetComponent<Tilemap>();
+        myStats = GetComponent<Stats>();
         Sprite = transform.GetChild(0);
-        //        CollisionTilemap = (GameObject.Find("CollidableObjects").GetComponent<Tilemap>().HasTile(Vector3Int.zero));
-
-        /*MoveDirectionSaver.x = GravityDirection.x;
-        MoveDirectionSaver.y = GravityDirection.y;
-
-        MoveDirectionSaver = (Quaternion.Euler(0, 0, 90) * MoveDirectionSaver);
-        MoveDirection.x = Mathf.RoundToInt(MoveDirectionSaver.x);
-        MoveDirection.y = Mathf.RoundToInt(MoveDirectionSaver.y);
-
-        CollisionTilemap.SetTile(Vector3Int.right * 12, t);*/
+        RotateOnTile = Vector3Int.one;
 
     }
 
@@ -94,24 +99,31 @@ public class Movement : MonoBehaviour {
     }
 
 
-
-
+    
+   public Vector3Int GroundBeneath = Vector3Int.zero;
     void Update() {
-       
+
+
+
         VSaver1.x = Mathf.RoundToInt(transform.position.x);
         VSaver1.y = Mathf.RoundToInt(transform.position.y);
 
-        if(Falling == true) {
+
+
+
+
+
+        if (Falling == true) {
             gravity += Time.deltaTime * 0.2f;
-            if(gravity >= 5) {
+            if (gravity >= 5) {
                 gravity = 5;
-            
+
             }
 
             CommingPosition.x = transform.position.x + (GravityDirection.x * gravity);
             CommingPosition.y = transform.position.y + (GravityDirection.y * gravity);
-            
-            if(TileInFront() == false) {
+
+            if (TileInFront() == false) {
                 transform.position = CommingPosition;
 
             } else {
@@ -120,23 +132,166 @@ public class Movement : MonoBehaviour {
             }
 
         } else {
-            CommingPosition.x = transform.position.x + MoveDirection.x * Time.deltaTime;
-            CommingPosition.y = transform.position.y + MoveDirection.y * Time.deltaTime;
 
-            if(TileInFront() == false) {//Nothing Ahead.
-                if(TileBelow() == false) {//Nothing Below.
-                    WalkAroundCorner();
+            if (CollisionTilemap.HasTile(GroundBeneath) == false) {//Colliding
+                MoveDirection = GravityDirection;
+                RotateLeft = false;
+                RotateRight = false;
+                Attacked();
+                RotateTime = 0;
+                StartedRotating = false;
+                gravity = 0;
 
-                } else {//Tile Below.
-                    transform.position = CommingPosition;
+                Sprite.transform.rotation = Quaternion.LookRotation(Vector3.forward, (Quaternion.Euler(0, 0, 180f) * GravityDirection));
+
+
+                Falling = true;
+
+            } else {
+
+                if (RotateOnTile != Vector3Int.one && CollisionTilemap.HasTile(RotateOnTile) == false) {
+                    Sprite.transform.rotation = Quaternion.LookRotation(Vector3.forward, (Quaternion.Euler(0, 0, 180f) * GravityDirection));
+                    RotateRight = false;
+                    RotateLeft = false;
+                    RotateOnTile = Vector3Int.one;
+                    RotateTime = 0;
+                    StartedRotating = false;
+
+                } else {
+
+
+                    CommingPosition.x = transform.position.x + MoveDirection.x * Time.deltaTime;
+                    CommingPosition.y = transform.position.y + MoveDirection.y * Time.deltaTime;
+
+                    if (EnemyAhead() == true) {
+                        Attack();
+
+                    } else {
+                        if (TileInFront() == false) {//Nothing Ahead.
+                            if (TileBelow() == false) {//Nothing Below.
+                                WalkAroundCorner();
+
+                            } else {//Tile Below.
+                                transform.position = CommingPosition;
+                                GroundBeneath.x = Mathf.RoundToInt(transform.position.x) + (GravityDirection.x);
+                                GroundBeneath.y = Mathf.RoundToInt(transform.position.y) + (GravityDirection.y);
+
+
+                            }
+
+                        } else {
+                            //Turn Tile
+                            //DO STUFF
+                            //Climbing Tile
+                            ManualCollisionCheck();
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    }
+    Collider2D collided;
+    Collider2D collided2;
+    public LayerMask targetsLayer;
+    public LayerMask Obstructions;
+
+    bool EnemyAhead() {
+        VSaver1.x = MoveDirection.x;
+        VSaver1.y = MoveDirection.y;
+
+        if (Bullet != null) {
+            Vector2 ho = new Vector2();
+
+            if(VSaver1.x == 0) {
+                ho.y = 1;
+                ho.x = 2;
+            } else {
+                ho.y = 2;
+                ho.x = 1;
+            }
+
+            collided = Physics2D.BoxCast(transform.position + (VSaver1 * AttackRange * 0.5f), (ho) * AttackRange, 0, Vector2.zero, 0, targetsLayer).collider;
+           
+        } else {
+            collided = Physics2D.Raycast(transform.position, VSaver1, AttackRange, targetsLayer).collider;
+
+        }
+
+
+        if (collided != null) {
+            if (Bullet != null) {
+                collided2 = Physics2D.Raycast(transform.position, collided.transform.position - transform.position, AttackRange, Obstructions).collider;
+               
+                if (collided2 != null) {
+                    if (collided2.tag == "Obscrutions") {
+                        return false;
+
+                    }
+                    if (collided2.tag == "Team1" || collided2.tag == "Team2") {
+                        return true;
+
+                    }
+                } else {
+                    return false;
+                }
+
+            } else {
+                return true;
+
+            }
+
+        } else {
+            return false;
+
+        }
+        return false;
+    }
+
+    bool AttackStarted = false;
+    void Attack() {
+        if(AttackStarted == false) {
+            AttackStarted = true;
+            SpriteAnimator.SetBool("Attack", true);
+
+        }
+
+    }
+    public void Attacked() {
+        if (AttackStarted == true) {
+            AttackStarted = false;
+            SpriteAnimator.SetBool("Attack", false);
+
+        }
+
+    }
+
+    public void DoAttack() {
+        if (Bullet != null) {
+            if(collided != null)
+            Instantiate(Bullet, transform.position, Quaternion.identity, transform.parent).GetComponent<BallFly>().Setter(myStats.Attack, collided.transform, targetsLayer, Obstructions);
+
+        } else {
+            if (myStats.Health > 0) {
+                if(collided != null) {
+                    if(collided.transform.GetComponent<Spawner>() == true) {
+                        collided.transform.GetComponent<Stats>().TakeDmg(myStats.Attack);
+
+                    } else {
+                    collided.transform.parent.GetComponent<Stats>().TakeDmg(myStats.Attack);
+
+                    }
 
                 }
 
             } else {
-                //Turn Tile
-                //DO STUFF
-                //Climbing Tile
-                ManualCollisionCheck();
+                GameObject.FindGameObjectWithTag("Respawn").GetComponent<LootSpawner>().IDied(transform);
+                GameObject.Destroy(this.gameObject);
 
             }
 
@@ -144,12 +299,15 @@ public class Movement : MonoBehaviour {
 
     }
 
+
     void WalkAroundCorner() {
         if (RotateLeft == false && RotateRight == false) {
+            VSaver1.x = Mathf.RoundToInt(transform.position.x);
+            VSaver1.y = Mathf.RoundToInt(transform.position.y);
+
             if (MovingRightOrLeft == true) {
                 RotatePoint = (VSaver1 + GravityDirection) + (Quaternion.Euler(0, 0, 180) * GravityDirection * 0.5f) + (Quaternion.Euler(0, 0, 90) * GravityDirection * 0.5f);
                 if (Vector3.Cross((Quaternion.Euler(0, 0, 180) * GravityDirection), CommingPosition - RotatePoint).z < 0) {//Went To The Left If True, Right If False
-                    Debug.Log("Rotating Right");
                     RotateRight = true;
 
                 }
@@ -157,7 +315,6 @@ public class Movement : MonoBehaviour {
             } else {
                 RotatePoint = (VSaver1 + GravityDirection) + (Quaternion.Euler(0, 0, 180) * GravityDirection * 0.5f) + (Quaternion.Euler(0, 0, -90) * GravityDirection * 0.5f);
                 if (Vector3.Cross((Quaternion.Euler(0, 0, 180) * GravityDirection), CommingPosition - RotatePoint).z > 0) {//Went To The Left If True, Right If False
-                    Debug.Log("Rotating Left");
                     RotateLeft = true;
 
                 }
@@ -256,22 +413,157 @@ public class Movement : MonoBehaviour {
     bool ManualCollisionCheck() {
         a.x = Mathf.RoundToInt(CommingPosition.x + (MoveDirection.x * offset) );
         a.y = Mathf.RoundToInt(CommingPosition.y + (MoveDirection.y * offset) );
+        a.z = 0;
 
         if (CollisionTilemap.HasTile(a) == true) {//Colliding
-            if(Falling == true) {
-                Falling = false;
-                gravity = 0;
+            if(GravityDirection != MoveDirection) {
+                if (RotateSprite() == true) {
+                    RotateMovement();
+                    GroundBeneath = a;
+
+                }
+
+            } else {
+                RotateMovement();
+                GroundBeneath = a;
 
             }
 
-            GravityDirection = MoveDirection;
+        } 
+        return false;
 
-            if (MoveDirection.x == 0) {//Hugging The Ground :D, Important To Update Gravity To Get Correct Way To Snap To
+    }
+
+    public Vector3Int RotateOnTile = Vector3Int.zero;
+
+    bool RotateSprite() {
+
+        if (StartedRotating == false) {
+            StartedRotating = true;
+          
+
+            if (MovingRightOrLeft == true) {
+                RotateLeft = true;
+
+            } else {
+                RotateRight = true;
+
+            }
+
+
+            VSaver2.x = Mathf.RoundToInt(transform.position.x) - a.x;
+            VSaver2.y = Mathf.RoundToInt(transform.position.y) - a.y;
+            RotateTime = 0;
+            startrotation = Sprite.transform.eulerAngles.z;
+            RotateOnTile = a;
+
+            transform.position = a + (((Quaternion.Euler(0, 0, 180f) * MoveDirection) * 0.75f)) - (((Quaternion.Euler(0, 0, 180f) * GravityDirection) * 0.25f));
+
+        } else {
+            RotateTime += Time.deltaTime * 2;
+            if (RotateTime >= 1) {
+                RotateTime = 1;
+
+            }
+
+            if (RotateLeft == true) {
+                if (Vector3.Cross(VSaver2, GravityDirection).z < 0) {
+                    Sprite.transform.eulerAngles = (Quaternion.Euler(0, 0, startrotation + ((-Vector3.Angle(VSaver2, GravityDirection)) * RotateTime))).eulerAngles;
+
+                } else {
+                    Sprite.transform.eulerAngles = (Quaternion.Euler(0, 0, startrotation + ((Vector3.Angle(VSaver2, GravityDirection)) * RotateTime))).eulerAngles;
+                
+                }
+
+            } else if (RotateRight == true) {
+                if (Vector3.Cross(VSaver2, GravityDirection).z < 0) {
+                    Sprite.transform.eulerAngles = (Quaternion.Euler(0, 0, startrotation + ((-Vector3.Angle(VSaver2, GravityDirection)) * RotateTime))).eulerAngles;
+
+                } else {
+                    Sprite.transform.eulerAngles = (Quaternion.Euler(0, 0, startrotation + ((Vector3.Angle(VSaver2, GravityDirection)) * RotateTime))).eulerAngles;
+
+                }
+
+            }
+
+            if (RotateTime >= 1) {
+                RotateTime = 0;
+                RotateOnTile = Vector3Int.one;
+                    StartedRotating = false;
+                RotateLeft = false;
+                RotateRight = false;
+                return true;
+            }
+
+        }
+
+        return false;
+    }
+
+    void RotateMovement() {
+        if (Falling == true) {
+            Falling = false;
+            gravity = 0;
+
+            if(GravityDirection.x == 0) {
+                VSaver2.x = transform.position.x - a.x;
+                VSaver2.y = 0;
+
+                transform.position = a + (Quaternion.Euler(0, 0, 180f) * GravityDirection * 0.75f) + VSaver2;
+
+            } else {
+                VSaver2.x = 0;
+                VSaver2.y = transform.position.y - a.y;
+
+                transform.position = a + (Quaternion.Euler(0, 0, 180f) * GravityDirection * 0.75f) + VSaver2;
+                //    transform.position = a + (Quaternion.Euler(0, 0, 180f) * GravityDirection * 0.75f) + (Quaternion.Euler(0, 0, 90f) * GravityDirection * (transform.position.y - a.y));
+
+            }
+
+
+        }
+
+        VSaver2.x = a.x - Mathf.RoundToInt(transform.position.x);
+        VSaver2.y = a.y - Mathf.RoundToInt(transform.position.y);
+        GravityDirection.x = Mathf.RoundToInt(VSaver2.x);//Setting Rotation Based On What I Landed On
+        GravityDirection.y = Mathf.RoundToInt(VSaver2.y);
+
+        MoveDirectionSaver.x = GravityDirection.x;
+        MoveDirectionSaver.y = GravityDirection.y;
+        if (MovingRightOrLeft == true) {
+            MoveDirectionSaver = (Quaternion.Euler(0, 0, 90) * MoveDirectionSaver);
+            MoveDirection.x = Mathf.RoundToInt(MoveDirectionSaver.x);
+            MoveDirection.y = Mathf.RoundToInt(MoveDirectionSaver.y);
+
+        } else {
+            MoveDirectionSaver = (Quaternion.Euler(0, 0, -90) * MoveDirectionSaver);
+            MoveDirection.x = Mathf.RoundToInt(MoveDirectionSaver.x);
+            MoveDirection.y = Mathf.RoundToInt(MoveDirectionSaver.y);
+
+        }
+
+
+        /*  if (MoveDirection.x == 0) {//Hugging The Ground :D, Important To Update Gravity To Get Correct Way To Snap To
+              VSaver1.x = transform.position.x;
+              VSaver1.y = Mathf.RoundToInt(transform.position.y);
+
+              transform.position = (VSaver2 + GravityDirection) + ((Quaternion.Euler(0, 0, 180f) * GravityDirection) * 0.75f);
+
+          } else {
+              VSaver1.x = Mathf.RoundToInt(transform.position.x);
+              VSaver1.y = transform.position.y;
+
+              transform.position = (VSaver1 + GravityDirection) + ((Quaternion.Euler(0, 0, 180f) * GravityDirection) * 0.75f);
+
+          }*/
+
+
+        /*    if (MoveDirection.x == 0) {//Hugging The Ground :D, Important To Update Gravity To Get Correct Way To Snap To
                 VSaver1.x = transform.position.x;
                 VSaver1.y = Mathf.RoundToInt(transform.position.y);
 
                 transform.position = (VSaver1 + GravityDirection) + ((Quaternion.Euler(0, 0, 180f) * GravityDirection) * 0.75f);
-          
+
             } else {
                 VSaver1.x = Mathf.RoundToInt(transform.position.x);
                 VSaver1.y = transform.position.y;
@@ -302,10 +594,7 @@ public class Movement : MonoBehaviour {
 
             MoveDirection.x = Mathf.RoundToInt(MoveDirectionSaver.x);
             MoveDirection.y = Mathf.RoundToInt(MoveDirectionSaver.y);
-            return true;
-
-        } 
-        return false;
+            return true;*/
 
     }
 

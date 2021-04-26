@@ -5,6 +5,13 @@ using UnityEngine.Tilemaps;
 
 public class World : MonoBehaviour {
 
+    public Tilemap BackgroundTileMap;
+    public Tilemap NonCollidableTileMap;
+    public Tilemap CollidableTileMap;
+
+
+
+
     public Tilemap FromTileMap;
     public Tilemap ToTileMap;
 
